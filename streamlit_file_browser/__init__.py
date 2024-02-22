@@ -73,7 +73,7 @@ def _do_code_preview(root, file_path, url, **kwargs):
         st.code(f.read(), **kwargs)
 
 
-def _do_pdf_preview(root, file_path, url, height="420px", **kwargs):
+def _do_pdf_preview(root, file_path, url, height="600px", **kwargs):
     abs_path = os.path.join(root, file_path)
     if url:
         safe_url = escape(url)
@@ -145,12 +145,21 @@ def _do_html_preview(root, file_path, url, **kwargs):
         html = f.read()
         # TODO fix this hardcode
 
-        artifacts_url = urljoin("https://launching.mlops.dp.tech/artifacts/", file_path[: file_path.rfind("/")+1])
+        artifacts_url = urljoin(
+            "https://launching.mlops.dp.tech/artifacts/",
+            file_path[: file_path.rfind("/") + 1],
+        )
         print(f"artifacts_url old: {artifacts_url}")
-        artifacts_url = url[: url.rfind("/")+1]
+        artifacts_url = url[: url.rfind("/") + 1]
         print(f"artifacts_url: {artifacts_url}")
-        artifacts_url = artifacts_url.replace("https://launching.mlops.dp.tech/users/", "https://launching.mlops.dp.tech/artifacts/users/")
-        artifacts_url = artifacts_url.replace("https://canary-launching.mlops.dp.tech/users/", "https://canary-launching.mlops.dp.tech/artifacts/users/")
+        artifacts_url = artifacts_url.replace(
+            "https://launching.mlops.dp.tech/users/",
+            "https://launching.mlops.dp.tech/artifacts/users/",
+        )
+        artifacts_url = artifacts_url.replace(
+            "https://canary-launching.mlops.dp.tech/users/",
+            "https://canary-launching.mlops.dp.tech/artifacts/users/",
+        )
         html = html.replace("launching-artifacts://", artifacts_url)
         st_embeded(html, **kwargs)
     return True
@@ -325,9 +334,11 @@ def ensure_tree_cache(
     ]
     for ignore in file_ignores or []:
         files = filter(
-            lambda f: (not ignore.match(os.path.basename(f)))
-            if isinstance(ignore, re.Pattern)
-            else (os.path.basename(f) not in file_ignores),
+            lambda f: (
+                (not ignore.match(os.path.basename(f)))
+                if isinstance(ignore, re.Pattern)
+                else (os.path.basename(f) not in file_ignores)
+            ),
             files,
         )
     files = [_get_file_info(str(root), str(path)) for path in files]
@@ -364,54 +375,57 @@ def st_file_browser(
     static_file_server_path=None,
     sort=None,
 ):
+    col1, col2 = st.columns([2, 3])
+
     extentions = tuple(extentions) if extentions else None
     root = pathlib.Path(os.path.abspath(path))
-    if use_static_file_server and static_file_server_path:
-        event = render_static_file_server(
-            key,
-            path,
-            static_file_server_path,
-            show_choose_file,
-            show_download_file,
-            show_delete_file,
-            show_new_folder,
-            show_upload_file,
-        )
-    else:
-        files = ensure_tree_cache(
-            path,
-            glob_patterns,
-            file_ignores,
-            limit,
-            use_cache=use_cache,
-        )
+    with col1:
+        if use_static_file_server and static_file_server_path:
+            event = render_static_file_server(
+                key,
+                path,
+                static_file_server_path,
+                show_choose_file,
+                show_download_file,
+                show_delete_file,
+                show_new_folder,
+                show_upload_file,
+            )
+        else:
+            files = ensure_tree_cache(
+                path,
+                glob_patterns,
+                file_ignores,
+                limit,
+                use_cache=use_cache,
+            )
 
-        files = (
-            [file for file in files if str(file["path"]).endswith(extentions)]
-            if extentions
-            else files
-        )
-        if show_preview and show_preview_top:
-            preview = st.container()
-        if not artifacts_download_site and artifacts_site:
-            artifacts_download_site = artifacts_site
-            
-        other_params = {}
-        if sort and callable(sort):
-            files = sort(files)
-            other_params["sort"] = None
-        
-        event = _component_func(
-            files=files,
-            show_choose_file=show_choose_file,
-            show_download_file=show_download_file,
-            show_delete_file=show_delete_file,
-            ignore_file_select_event=ignore_file_select_event,
-            artifacts_download_site=artifacts_download_site,
-            artifacts_site=artifacts_site,
-            key=key,
-            **other_params,
-        )
+            files = (
+                [file for file in files if str(file["path"]).endswith(extentions)]
+                if extentions
+                else files
+            )
+            if show_preview and show_preview_top:
+                preview = st.container()
+            if not artifacts_download_site and artifacts_site:
+                artifacts_download_site = artifacts_site
+
+            other_params = {}
+            if sort and callable(sort):
+                files = sort(files)
+                other_params["sort"] = None
+
+            event = _component_func(
+                files=files,
+                show_choose_file=show_choose_file,
+                show_download_file=show_download_file,
+                show_delete_file=show_delete_file,
+                ignore_file_select_event=ignore_file_select_event,
+                artifacts_download_site=artifacts_download_site,
+                artifacts_site=artifacts_site,
+                key=key,
+                **other_params,
+            )
     if event:
         if event["type"] == "SELECT_FILE" and (
             (not select_filetype_ignores)
@@ -425,20 +439,12 @@ def st_file_browser(
             file = event["target"]
             if "path" in file:
                 if not os.path.exists(os.path.join(root, file["path"])):
-                    st.warning(f"File {file['path']} not found")
+                    col1.warning(f"File {file['path']} not found")
                     return event
-            if show_preview and show_preview_top:
-                with preview:
-                    with st.expander("", expanded=True):
-                        show_file_preview(
-                            str(root),
-                            file,
-                            artifacts_site,
-                            overide_preview_handles=overide_preview_handles,
-                            key=f"{key}-preview",
-                        )
-            elif show_preview and not show_preview_top:
-                with st.expander("", expanded=True):
+            if show_preview:
+                with col2.expander(
+                    "Preview", expanded=True
+                ):  # Ensure this is in the context of the right column
                     show_file_preview(
                         str(root),
                         file,
@@ -494,9 +500,10 @@ if _DEVELOP_MODE or os.getenv("SHOW_FILE_BROWSER_DEMO"):
         event = st.file_uploader(key="ding", label="upload file")
 
     st.header("Default Options")
+
     def sort(files):
         return sorted(files, key=lambda x: x["size"])
-    
+
     event = st_file_browser(
         os.path.join(current_path, "..", "example_artifacts"),
         file_ignores=("a.py", "a.txt", re.compile(".*.pdb")),
